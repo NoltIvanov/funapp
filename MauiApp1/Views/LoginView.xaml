@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:MauiApp1.ViewModels"
+             x:Class="MauiApp1.Views.LoginView"
+             Title="Login"
+             BackgroundColor="{StaticResource White}">
+
+    <ContentPage.BindingContext>
+        <viewModels:LoginViewModel />
+    </ContentPage.BindingContext>
+
+    <Grid RowDefinitions="*,Auto" Padding="40" VerticalOptions="Center">
+
+        <VerticalStackLayout Grid.Row="0" Spacing="30" VerticalOptions="Center">
+
+            <VerticalStackLayout Spacing="10">
+                <Image HeightRequest="120"
+                       Aspect="AspectFit"
+                       HorizontalOptions="Center"
+                       Source="dotnet_bot.png"
+                       SemanticProperties.Description="App logo" />
+
+                <Label Style="{StaticResource Headline}"
+                       HorizontalOptions="Center"
+                       SemanticProperties.HeadingLevel="Level1"
+                       Text="Welcome" />
+
+                <Label HorizontalOptions="Center"
+                       SemanticProperties.Description="Sign in to continue"
+                       Text="Sign in to continue"
+                       TextColor="{StaticResource Gray500}" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Spacing="16">
+
+                <Button Command="{Binding LoginWithGoogleCommand}"
+                        HorizontalOptions="Fill"
+                        BackgroundColor="#FFFFFF"
+                        BorderColor="#DADCE0"
+                        BorderWidth="1"
+                        CharacterSpacing="0.5"
+                        FontAttributes="Bold"
+                        FontSize="16"
+                        HeightRequest="52"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}"
+                        Text="  Continue with Google"
+                        TextColor="#3C4043" />
+
+                <Button Command="{Binding LoginWithMicrosoftCommand}"
+                        HorizontalOptions="Fill"
+                        BackgroundColor="#2F2F2F"
+                        BorderWidth="0"
+                        CharacterSpacing="0.5"
+                        FontAttributes="Bold"
+                        FontSize="16"
+                        HeightRequest="52"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}"
+                        Text="  Continue with Microsoft"
+                        TextColor="#FFFFFF" />
+
+            </VerticalStackLayout>
+
+            <ActivityIndicator IsRunning="{Binding IsBusy}"
+                               IsVisible="{Binding IsBusy}"
+                               HorizontalOptions="Center"
+                               Color="{StaticResource Primary}" />
+
+        </VerticalStackLayout>
+
+        <Label Grid.Row="1"
+               HorizontalOptions="Center"
+               Margin="0,20,0,0"
+               Text="By signing in, you agree to our Terms of Service"
+               TextColor="{StaticResource Gray400}"
+               FontSize="12" />
+
+    </Grid>
+
+</ContentPage>

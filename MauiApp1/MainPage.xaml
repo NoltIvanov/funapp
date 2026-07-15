@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage x:Class="MauiApp1.MainPage"
+             xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:MauiApp1.Behaviors"
+             xmlns:navigationDrawer="clr-namespace:Syncfusion.Maui.Toolkit.NavigationDrawer;assembly=Syncfusion.Maui.Toolkit">
+    <VerticalStackLayout Spacing="25" Padding="30,0">
+        <Image HeightRequest="185"
+               Aspect="AspectFit"
+               SemanticProperties.Description="dot net bot in a race car number eight"
+               Source="dotnet_bot.png" />
+
+        <Label Style="{StaticResource Headline}"
+               SemanticProperties.HeadingLevel="Level1"
+               Text="Hello, World!" />
+
+        <Entry SemanticProperties.Description="Welcome to dot net Multi platform App U I"
+               BackgroundColor="Red"
+               SemanticProperties.HeadingLevel="Level2"
+               Text="ENTRY">
+            <!--<Entry.Behaviors>
+                <local:EntryBorderBehavior />
+            </Entry.Behaviors>-->
+        </Entry>
+
+        <Button x:Name="CounterBtn"
+                HorizontalOptions="Fill"
+                SemanticProperties.Hint="Counts the number of times you click"
+                Clicked="OnCounterClicked"
+                Text="Click me" />
+    </VerticalStackLayout>
+
+</ContentPage>
