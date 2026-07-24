@@ -55,3 +55,18 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently.
 Weak criteria ("make it work") require constant clarification.
+
+## 5. Local File Safety
+
+- Never delete, move, truncate, overwrite, or clean up `AGENTS.local.md`.
+- Treat `AGENTS.local.md` as user-owned local configuration, even though it is ignored by Git.
+
+## 6. Commit Naming
+
+- Commit names/messages must be written in English only.
+
+## 7. Git Operations
+
+- Commit, push, and create or update pull requests only when the user explicitly asks for that git action.
+- Do not infer permission to commit, push, or open a pull request from completed code changes, successful builds, or an existing pull request.
+- If code changes are ready but no git action was requested, leave them uncommitted and report the status.

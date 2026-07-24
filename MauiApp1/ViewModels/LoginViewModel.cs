@@ -10,14 +10,18 @@ namespace MauiApp1.ViewModels
 {
     public class LoginViewModel : BaseViewModel
     {
+        private static readonly string GoogleClientId = GetConfigurationValue("WOLFAPP_GOOGLE_CLIENT_ID");
+        private static readonly string GoogleWindowsClientId = GetConfigurationValue("WOLFAPP_GOOGLE_WINDOWS_CLIENT_ID");
+
         private static readonly AuthProvider GoogleProvider = new(
             AuthProviderKind.Google,
             "Google",
             new Uri("https://accounts.google.com/o/oauth2/v2/auth"),
             new Uri("https://oauth2.googleapis.com/token"),
             new Uri("https://openidconnect.googleapis.com/v1/userinfo"),
-            "941430168156-87e8flf4huf7sr66foc61kotbb30lqtn.apps.googleusercontent.com",
-            "com.googleusercontent.apps.941430168156-87e8flf4huf7sr66foc61kotbb30lqtn:/oauth2callback",
+            GoogleClientId,
+            CreateGoogleRedirectUri(GoogleClientId),
+            GoogleWindowsClientId,
             "127.0.0.1",
             "openid profile email");
 
@@ -29,6 +33,7 @@ namespace MauiApp1.ViewModels
             new Uri("https://graph.microsoft.com/v1.0/me"),
             "84a5b2c7-cc24-4bc2-a272-33bf88b7a0f4",
             "msauth://com.wolfapp/d8KUJIGjAISv24pyqyv1QXT%2Fe64%3D",
+            "84a5b2c7-cc24-4bc2-a272-33bf88b7a0f4",
             "localhost",
             "openid profile email User.Read");
 
@@ -134,7 +139,7 @@ namespace MauiApp1.ViewModels
         {
             var parameters = new Dictionary<string, string>
             {
-                ["client_id"] = provider.ClientId,
+                ["client_id"] = GetClientId(provider),
                 ["redirect_uri"] = redirectUri,
                 ["response_type"] = "code",
                 ["scope"] = provider.Scopes,
@@ -190,7 +195,7 @@ namespace MauiApp1.ViewModels
         {
             var parameters = new Dictionary<string, string>
             {
-                ["client_id"] = provider.ClientId,
+                ["client_id"] = GetClientId(provider),
                 ["redirect_uri"] = redirectUri,
                 ["grant_type"] = "authorization_code",
                 ["code"] = authorizationCode,
@@ -201,6 +206,34 @@ namespace MauiApp1.ViewModels
             var tokenJson = await ReadJsonAsync(response, $"{provider.Name} token exchange");
 
             return GetRequiredJsonString(tokenJson, "access_token", $"{provider.Name} token response");
+        }
+
+        private static string GetClientId(AuthProvider provider)
+        {
+#if WINDOWS
+            var clientId = provider.WindowsClientId;
+#else
+            var clientId = provider.ClientId;
+#endif
+            if (string.IsNullOrWhiteSpace(clientId))
+                throw new InvalidOperationException($"{provider.Name} sign-in requires an OAuth client ID for this platform.");
+
+            return clientId;
+        }
+
+        private static string CreateGoogleRedirectUri(string clientId)
+        {
+            const string clientIdSuffix = ".apps.googleusercontent.com";
+
+            if (!clientId.EndsWith(clientIdSuffix, StringComparison.Ordinal))
+                return string.Empty;
+
+            return $"com.googleusercontent.apps.{clientId[..^clientIdSuffix.Length]}:/oauth2callback";
+        }
+
+        private static string GetConfigurationValue(string name)
+        {
+            return Environment.GetEnvironmentVariable(name) ?? string.Empty;
         }
 
         private static async Task<UserModel> LoadUserProfileAsync(AuthProvider provider, string accessToken)
@@ -311,6 +344,7 @@ namespace MauiApp1.ViewModels
             Uri UserInfoEndpoint,
             string ClientId,
             string RedirectUri,
+            string WindowsClientId,
             string WindowsLoopbackHost,
             string Scopes);
 
