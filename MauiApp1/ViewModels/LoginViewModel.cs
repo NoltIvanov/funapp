@@ -10,8 +10,8 @@ namespace MauiApp1.ViewModels
 {
     public class LoginViewModel : BaseViewModel
     {
-        private static readonly string GoogleClientId = GetConfigurationValue("WOLFAPP_GOOGLE_CLIENT_ID");
-        private static readonly string GoogleWindowsClientId = GetConfigurationValue("WOLFAPP_GOOGLE_WINDOWS_CLIENT_ID");
+        private static readonly string GoogleClientId = GetConfigurationValue("941430168156-87e8flf4huf7sr66foc61kotbb30lqtn.apps.googleusercontent.com");
+        private static readonly string GoogleWindowsClientId = GetConfigurationValue("941430168156-c7mp4qb5go2179lcnleei77t7cfafosl.apps.googleusercontent.com");
 
         private static readonly AuthProvider GoogleProvider = new(
             AuthProviderKind.Google,
