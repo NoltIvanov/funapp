@@ -1,6 +1,6 @@
-using System.Windows.Input;
 using MauiApp1.Models;
-using Microsoft.Maui.Authentication;
+using MauiApp1.Services;
+using System.Windows.Input;
 
 namespace MauiApp1.ViewModels
 {
@@ -10,23 +10,23 @@ namespace MauiApp1.ViewModels
         private const string MicrosoftClientId = "84a5b2c7-cc24-4bc2-a272-33bf88b7a0f4";
 
         private static readonly Uri GoogleAuthUrl = new("https://accounts.google.com/o/oauth2/v2/auth");
-        private static readonly Uri GoogleTokenUrl = new("https://oauth2.googleapis.com/token");
         private static readonly Uri MicrosoftAuthUrl = new("https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
-        private static readonly Uri MicrosoftTokenUrl = new("https://login.microsoftonline.com/common/oauth2/v2.0/token");
 
-        private const string GoogleRedirectUri = "http://localhost";
+        private const string GoogleRedirectUri = "com.googleusercontent.apps.675539284871-54atsjtqdpb0soje89qbvu077vineafp:/oauth2callback";
         private const string MicrosoftRedirectUri = "msauth://com.wolfapp/d8KUJIGjAISv24pyqyv1QXT%2Fe64%3D";
 
         private const string GoogleScopes = "openid profile email";
         private const string MicrosoftScopes = "openid profile email User.Read";
 
+        private readonly INavigationService _navigationService;
+
         public ICommand LoginWithGoogleCommand { get; }
         public ICommand LoginWithMicrosoftCommand { get; }
 
-        public Func<UserModel, Task>? OnLoginSuccess { get; set; }
-
-        public LoginViewModel()
+        public LoginViewModel(INavigationService navigationService)
         {
+            _navigationService = navigationService;
+
             LoginWithGoogleCommand = new Command(async () => await LoginWithGoogleAsync());
             LoginWithMicrosoftCommand = new Command(async () => await LoginWithMicrosoftAsync());
         }
@@ -57,12 +57,10 @@ namespace MauiApp1.ViewModels
                     Email = result.Properties.ContainsKey("email") ? result.Properties["email"] : string.Empty,
                 };
 
-                if (OnLoginSuccess != null)
-                    await OnLoginSuccess.Invoke(user);
+                await _navigationService.GoToMainAsync();
             }
             catch (TaskCanceledException)
             {
-                // User cancelled
             }
             catch (Exception ex)
             {
@@ -100,12 +98,10 @@ namespace MauiApp1.ViewModels
                     Email = result.Properties.ContainsKey("email") ? result.Properties["email"] : string.Empty,
                 };
 
-                if (OnLoginSuccess != null)
-                    await OnLoginSuccess.Invoke(user);
+                await _navigationService.GoToMainAsync();
             }
             catch (TaskCanceledException)
             {
-                // User cancelled
             }
             catch (Exception ex)
             {

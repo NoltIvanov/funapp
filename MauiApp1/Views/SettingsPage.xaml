@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:MauiApp1.ViewModels"
+             x:Class="MauiApp1.Views.SettingsPage"
+             Title="Settings"
+             Shell.TabBarIsVisible="True">
+
+    <ContentPage.BindingContext>
+        <viewModels:SettingsViewModel />
+    </ContentPage.BindingContext>
+
+    <VerticalStackLayout Spacing="20" Padding="20" VerticalOptions="Center">
+
+        <Label Style="{StaticResource Headline}"
+               HorizontalOptions="Center"
+               Text="Settings" />
+
+        <Label HorizontalOptions="Center"
+               Text="Settings options will appear here"
+               TextColor="{StaticResource Gray500}" />
+
+    </VerticalStackLayout>
+
+</ContentPage>
