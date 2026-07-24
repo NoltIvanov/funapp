@@ -20,6 +20,7 @@ namespace MauiApp1
 
             builder.Services.AddSingleton<INavigationService, NavigationService>();
             builder.Services.AddSingleton<IUserSessionService, UserSessionService>();
+            builder.Services.AddSingleton<IAppleAuthenticationService, AppleAuthenticationService>();
 
             builder.Services.AddTransient<LoginViewModel>();
             builder.Services.AddTransient<FeedViewModel>();

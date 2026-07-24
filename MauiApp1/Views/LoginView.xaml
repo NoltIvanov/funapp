@@ -56,6 +56,19 @@
                         Text="  Continue with Microsoft"
                         TextColor="#FFFFFF" />
 
+                <Button Command="{Binding LoginWithAppleCommand}"
+                        HorizontalOptions="Fill"
+                        BackgroundColor="#000000"
+                        BorderWidth="0"
+                        CharacterSpacing="0.5"
+                        FontAttributes="Bold"
+                        FontSize="16"
+                        HeightRequest="52"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}"
+                        IsVisible="{Binding IsAppleSignInAvailable}"
+                        Text="  Continue with Apple"
+                        TextColor="#FFFFFF" />
+
             </VerticalStackLayout>
 
             <ActivityIndicator IsRunning="{Binding IsBusy}"

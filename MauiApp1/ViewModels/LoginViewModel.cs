@@ -16,8 +16,8 @@ namespace MauiApp1.ViewModels
             new Uri("https://accounts.google.com/o/oauth2/v2/auth"),
             new Uri("https://oauth2.googleapis.com/token"),
             new Uri("https://openidconnect.googleapis.com/v1/userinfo"),
-            "675539284871-54atsjtqdpb0soje89qbvu077vineafp.apps.googleusercontent.com",
-            "com.googleusercontent.apps.675539284871-54atsjtqdpb0soje89qbvu077vineafp:/oauth2callback",
+            "941430168156-87e8flf4huf7sr66foc61kotbb30lqtn.apps.googleusercontent.com",
+            "com.googleusercontent.apps.941430168156-87e8flf4huf7sr66foc61kotbb30lqtn:/oauth2callback",
             "openid profile email");
 
         private static readonly AuthProvider MicrosoftProvider = new(
@@ -34,17 +34,25 @@ namespace MauiApp1.ViewModels
 
         private readonly INavigationService _navigationService;
         private readonly IUserSessionService _userSessionService;
+        private readonly IAppleAuthenticationService _appleAuthenticationService;
 
         public ICommand LoginWithGoogleCommand { get; }
         public ICommand LoginWithMicrosoftCommand { get; }
+        public ICommand LoginWithAppleCommand { get; }
+        public bool IsAppleSignInAvailable => _appleAuthenticationService.IsAvailable;
 
-        public LoginViewModel(INavigationService navigationService, IUserSessionService userSessionService)
+        public LoginViewModel(
+            INavigationService navigationService,
+            IUserSessionService userSessionService,
+            IAppleAuthenticationService appleAuthenticationService)
         {
             _navigationService = navigationService;
             _userSessionService = userSessionService;
+            _appleAuthenticationService = appleAuthenticationService;
 
             LoginWithGoogleCommand = new Command(async () => await LoginAsync(GoogleProvider));
             LoginWithMicrosoftCommand = new Command(async () => await LoginAsync(MicrosoftProvider));
+            LoginWithAppleCommand = new Command(async () => await LoginWithAppleAsync());
         }
 
         private async Task LoginAsync(AuthProvider provider)
@@ -79,6 +87,30 @@ namespace MauiApp1.ViewModels
             catch (Exception ex)
             {
                 await Shell.Current.DisplayAlertAsync("Error", $"{provider.Name} sign-in failed: {ex.Message}", "OK");
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        private async Task LoginWithAppleAsync()
+        {
+            if (IsBusy) return;
+
+            try
+            {
+                IsBusy = true;
+                _userSessionService.CurrentUser = await _appleAuthenticationService.SignInAsync();
+
+                await _navigationService.GoToMainAsync();
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                await Shell.Current.DisplayAlertAsync("Error", $"Apple sign-in failed: {ex.Message}", "OK");
             }
             finally
             {
