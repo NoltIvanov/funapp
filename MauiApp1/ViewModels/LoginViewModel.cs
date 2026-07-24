@@ -18,6 +18,7 @@ namespace MauiApp1.ViewModels
             new Uri("https://openidconnect.googleapis.com/v1/userinfo"),
             "941430168156-87e8flf4huf7sr66foc61kotbb30lqtn.apps.googleusercontent.com",
             "com.googleusercontent.apps.941430168156-87e8flf4huf7sr66foc61kotbb30lqtn:/oauth2callback",
+            "127.0.0.1",
             "openid profile email");
 
         private static readonly AuthProvider MicrosoftProvider = new(
@@ -28,12 +29,14 @@ namespace MauiApp1.ViewModels
             new Uri("https://graph.microsoft.com/v1.0/me"),
             "84a5b2c7-cc24-4bc2-a272-33bf88b7a0f4",
             "msauth://com.wolfapp/d8KUJIGjAISv24pyqyv1QXT%2Fe64%3D",
+            "localhost",
             "openid profile email User.Read");
 
         private static readonly HttpClient HttpClient = new();
 
         private readonly INavigationService _navigationService;
         private readonly IUserSessionService _userSessionService;
+        private readonly IBrowserAuthenticationService _browserAuthenticationService;
         private readonly IAppleAuthenticationService _appleAuthenticationService;
 
         public ICommand LoginWithGoogleCommand { get; }
@@ -44,10 +47,12 @@ namespace MauiApp1.ViewModels
         public LoginViewModel(
             INavigationService navigationService,
             IUserSessionService userSessionService,
+            IBrowserAuthenticationService browserAuthenticationService,
             IAppleAuthenticationService appleAuthenticationService)
         {
             _navigationService = navigationService;
             _userSessionService = userSessionService;
+            _browserAuthenticationService = browserAuthenticationService;
             _appleAuthenticationService = appleAuthenticationService;
 
             LoginWithGoogleCommand = new Command(async () => await LoginAsync(GoogleProvider));
@@ -64,19 +69,16 @@ namespace MauiApp1.ViewModels
                 IsBusy = true;
                 var request = CreateAuthRequest();
 
-                var authOptions = new WebAuthenticatorOptions
-                {
-                    Url = BuildAuthUrl(provider, request),
-                    CallbackUrl = new Uri(provider.RedirectUri),
-                    PrefersEphemeralWebBrowserSession = true
-                };
+                var result = await _browserAuthenticationService.AuthenticateAsync(
+                    callbackUri => BuildAuthUrl(provider, request, callbackUri),
+                    new BrowserAuthenticationOptions(provider.RedirectUri, provider.WindowsLoopbackHost));
 
-#pragma warning disable CA1416
-                var result = await WebAuthenticator.AuthenticateAsync(authOptions);
-#pragma warning restore CA1416
-
-                var authorizationCode = ValidateAuthResult(result, request.State, provider.Name);
-                var accessToken = await ExchangeCodeForAccessTokenAsync(provider, request, authorizationCode);
+                var authorizationCode = ValidateAuthResult(result.Properties, request.State, provider.Name);
+                var accessToken = await ExchangeCodeForAccessTokenAsync(
+                    provider,
+                    request,
+                    authorizationCode,
+                    result.CallbackUri);
                 _userSessionService.CurrentUser = await LoadUserProfileAsync(provider, accessToken);
 
                 await _navigationService.GoToMainAsync();
@@ -128,12 +130,12 @@ namespace MauiApp1.ViewModels
                 CreateCodeChallenge(codeVerifier));
         }
 
-        private static Uri BuildAuthUrl(AuthProvider provider, AuthRequest request)
+        private static Uri BuildAuthUrl(AuthProvider provider, AuthRequest request, string redirectUri)
         {
             var parameters = new Dictionary<string, string>
             {
                 ["client_id"] = provider.ClientId,
-                ["redirect_uri"] = provider.RedirectUri,
+                ["redirect_uri"] = redirectUri,
                 ["response_type"] = "code",
                 ["scope"] = provider.Scopes,
                 ["response_mode"] = "query",
@@ -149,9 +151,21 @@ namespace MauiApp1.ViewModels
             return new Uri($"{provider.Authority}?{queryString}");
         }
 
-        private static string ValidateAuthResult(WebAuthenticatorResult result, string expectedState, string providerName)
+        private static string ValidateAuthResult(
+            IReadOnlyDictionary<string, string> result,
+            string expectedState,
+            string providerName)
         {
-            if (!result.Properties.TryGetValue("state", out var returnedState) ||
+            if (result.TryGetValue("error", out var error))
+            {
+                var description = result.TryGetValue("error_description", out var value)
+                    ? $": {value}"
+                    : string.Empty;
+
+                throw new InvalidOperationException($"{providerName} returned '{error}'{description}.");
+            }
+
+            if (!result.TryGetValue("state", out var returnedState) ||
                 !CryptographicOperations.FixedTimeEquals(
                     Encoding.UTF8.GetBytes(returnedState),
                     Encoding.UTF8.GetBytes(expectedState)))
@@ -159,7 +173,7 @@ namespace MauiApp1.ViewModels
                 throw new InvalidOperationException($"{providerName} returned an invalid authentication state.");
             }
 
-            if (!result.Properties.TryGetValue("code", out var authorizationCode) ||
+            if (!result.TryGetValue("code", out var authorizationCode) ||
                 string.IsNullOrWhiteSpace(authorizationCode))
             {
                 throw new InvalidOperationException($"{providerName} did not return an authorization code.");
@@ -171,12 +185,13 @@ namespace MauiApp1.ViewModels
         private static async Task<string> ExchangeCodeForAccessTokenAsync(
             AuthProvider provider,
             AuthRequest request,
-            string authorizationCode)
+            string authorizationCode,
+            string redirectUri)
         {
             var parameters = new Dictionary<string, string>
             {
                 ["client_id"] = provider.ClientId,
-                ["redirect_uri"] = provider.RedirectUri,
+                ["redirect_uri"] = redirectUri,
                 ["grant_type"] = "authorization_code",
                 ["code"] = authorizationCode,
                 ["code_verifier"] = request.CodeVerifier,
@@ -296,6 +311,7 @@ namespace MauiApp1.ViewModels
             Uri UserInfoEndpoint,
             string ClientId,
             string RedirectUri,
+            string WindowsLoopbackHost,
             string Scopes);
 
         private sealed record AuthRequest(
