@@ -2,7 +2,6 @@
 using MauiApp1.ViewModels;
 using MauiApp1.Views;
 using Microsoft.Extensions.Logging;
-using Syncfusion.Maui.Toolkit.Hosting;
 
 namespace MauiApp1
 {
@@ -12,7 +11,6 @@ namespace MauiApp1
         {
             var builder = MauiApp.CreateBuilder();
             builder
-                .ConfigureSyncfusionToolkit()
                 .UseMauiApp<App>()
                 .ConfigureFonts(fonts =>
                 {
@@ -21,6 +19,7 @@ namespace MauiApp1
                 });
 
             builder.Services.AddSingleton<INavigationService, NavigationService>();
+            builder.Services.AddSingleton<IUserSessionService, UserSessionService>();
 
             builder.Services.AddTransient<LoginViewModel>();
             builder.Services.AddTransient<FeedViewModel>();

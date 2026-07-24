@@ -1,48 +1,65 @@
 using MauiApp1.Models;
 using MauiApp1.Services;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Windows.Input;
 
 namespace MauiApp1.ViewModels
 {
     public class LoginViewModel : BaseViewModel
     {
-        private const string GoogleClientId = "675539284871-54atsjtqdpb0soje89qbvu077vineafp.apps.googleusercontent.com";
-        private const string MicrosoftClientId = "84a5b2c7-cc24-4bc2-a272-33bf88b7a0f4";
+        private static readonly AuthProvider GoogleProvider = new(
+            AuthProviderKind.Google,
+            "Google",
+            new Uri("https://accounts.google.com/o/oauth2/v2/auth"),
+            new Uri("https://oauth2.googleapis.com/token"),
+            new Uri("https://openidconnect.googleapis.com/v1/userinfo"),
+            "675539284871-54atsjtqdpb0soje89qbvu077vineafp.apps.googleusercontent.com",
+            "com.googleusercontent.apps.675539284871-54atsjtqdpb0soje89qbvu077vineafp:/oauth2callback",
+            "openid profile email");
 
-        private static readonly Uri GoogleAuthUrl = new("https://accounts.google.com/o/oauth2/v2/auth");
-        private static readonly Uri MicrosoftAuthUrl = new("https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
+        private static readonly AuthProvider MicrosoftProvider = new(
+            AuthProviderKind.Microsoft,
+            "Microsoft",
+            new Uri("https://login.microsoftonline.com/common/oauth2/v2.0/authorize"),
+            new Uri("https://login.microsoftonline.com/common/oauth2/v2.0/token"),
+            new Uri("https://graph.microsoft.com/v1.0/me"),
+            "84a5b2c7-cc24-4bc2-a272-33bf88b7a0f4",
+            "msauth://com.wolfapp/d8KUJIGjAISv24pyqyv1QXT%2Fe64%3D",
+            "openid profile email User.Read");
 
-        private const string GoogleRedirectUri = "com.googleusercontent.apps.675539284871-54atsjtqdpb0soje89qbvu077vineafp:/oauth2callback";
-        private const string MicrosoftRedirectUri = "msauth://com.wolfapp/d8KUJIGjAISv24pyqyv1QXT%2Fe64%3D";
-
-        private const string GoogleScopes = "openid profile email";
-        private const string MicrosoftScopes = "openid profile email User.Read";
+        private static readonly HttpClient HttpClient = new();
 
         private readonly INavigationService _navigationService;
+        private readonly IUserSessionService _userSessionService;
 
         public ICommand LoginWithGoogleCommand { get; }
         public ICommand LoginWithMicrosoftCommand { get; }
 
-        public LoginViewModel(INavigationService navigationService)
+        public LoginViewModel(INavigationService navigationService, IUserSessionService userSessionService)
         {
             _navigationService = navigationService;
+            _userSessionService = userSessionService;
 
-            LoginWithGoogleCommand = new Command(async () => await LoginWithGoogleAsync());
-            LoginWithMicrosoftCommand = new Command(async () => await LoginWithMicrosoftAsync());
+            LoginWithGoogleCommand = new Command(async () => await LoginAsync(GoogleProvider));
+            LoginWithMicrosoftCommand = new Command(async () => await LoginAsync(MicrosoftProvider));
         }
 
-        private async Task LoginWithGoogleAsync()
+        private async Task LoginAsync(AuthProvider provider)
         {
             if (IsBusy) return;
 
             try
             {
                 IsBusy = true;
+                var request = CreateAuthRequest();
 
                 var authOptions = new WebAuthenticatorOptions
                 {
-                    Url = BuildAuthUrl(GoogleAuthUrl, GoogleClientId, GoogleRedirectUri, GoogleScopes),
-                    CallbackUrl = new Uri(GoogleRedirectUri),
+                    Url = BuildAuthUrl(provider, request),
+                    CallbackUrl = new Uri(provider.RedirectUri),
                     PrefersEphemeralWebBrowserSession = true
                 };
 
@@ -50,12 +67,9 @@ namespace MauiApp1.ViewModels
                 var result = await WebAuthenticator.AuthenticateAsync(authOptions);
 #pragma warning restore CA1416
 
-                var user = new UserModel
-                {
-                    Provider = "Google",
-                    Name = result.Properties.ContainsKey("name") ? result.Properties["name"] : "Google User",
-                    Email = result.Properties.ContainsKey("email") ? result.Properties["email"] : string.Empty,
-                };
+                var authorizationCode = ValidateAuthResult(result, request.State, provider.Name);
+                var accessToken = await ExchangeCodeForAccessTokenAsync(provider, request, authorizationCode);
+                _userSessionService.CurrentUser = await LoadUserProfileAsync(provider, accessToken);
 
                 await _navigationService.GoToMainAsync();
             }
@@ -64,7 +78,7 @@ namespace MauiApp1.ViewModels
             }
             catch (Exception ex)
             {
-                await Shell.Current.DisplayAlertAsync("Error", $"Google sign-in failed: {ex.Message}", "OK");
+                await Shell.Current.DisplayAlertAsync("Error", $"{provider.Name} sign-in failed: {ex.Message}", "OK");
             }
             finally
             {
@@ -72,51 +86,190 @@ namespace MauiApp1.ViewModels
             }
         }
 
-        private async Task LoginWithMicrosoftAsync()
+        private static AuthRequest CreateAuthRequest()
         {
-            if (IsBusy) return;
-
-            try
-            {
-                IsBusy = true;
-
-                var authOptions = new WebAuthenticatorOptions
-                {
-                    Url = BuildAuthUrl(MicrosoftAuthUrl, MicrosoftClientId, MicrosoftRedirectUri, MicrosoftScopes),
-                    CallbackUrl = new Uri(MicrosoftRedirectUri),
-                    PrefersEphemeralWebBrowserSession = true
-                };
-
-#pragma warning disable CA1416
-                var result = await WebAuthenticator.AuthenticateAsync(authOptions);
-#pragma warning restore CA1416
-
-                var user = new UserModel
-                {
-                    Provider = "Microsoft",
-                    Name = result.Properties.ContainsKey("name") ? result.Properties["name"] : "Microsoft User",
-                    Email = result.Properties.ContainsKey("email") ? result.Properties["email"] : string.Empty,
-                };
-
-                await _navigationService.GoToMainAsync();
-            }
-            catch (TaskCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                await Shell.Current.DisplayAlertAsync("Error", $"Microsoft sign-in failed: {ex.Message}", "OK");
-            }
-            finally
-            {
-                IsBusy = false;
-            }
+            var codeVerifier = CreateRandomToken();
+            return new AuthRequest(
+                CreateRandomToken(),
+                CreateRandomToken(),
+                codeVerifier,
+                CreateCodeChallenge(codeVerifier));
         }
 
-        private static Uri BuildAuthUrl(Uri authority, string clientId, string redirectUri, string scopes)
+        private static Uri BuildAuthUrl(AuthProvider provider, AuthRequest request)
         {
-            var queryString = $"client_id={clientId}&redirect_uri={Uri.EscapeDataString(redirectUri)}&response_type=code&scope={Uri.EscapeDataString(scopes)}&response_mode=query";
-            return new Uri($"{authority}?{queryString}");
+            var parameters = new Dictionary<string, string>
+            {
+                ["client_id"] = provider.ClientId,
+                ["redirect_uri"] = provider.RedirectUri,
+                ["response_type"] = "code",
+                ["scope"] = provider.Scopes,
+                ["response_mode"] = "query",
+                ["state"] = request.State,
+                ["nonce"] = request.Nonce,
+                ["code_challenge"] = request.CodeChallenge,
+                ["code_challenge_method"] = "S256",
+            };
+
+            var queryString = string.Join("&", parameters.Select(parameter =>
+                $"{Uri.EscapeDataString(parameter.Key)}={Uri.EscapeDataString(parameter.Value)}"));
+
+            return new Uri($"{provider.Authority}?{queryString}");
         }
+
+        private static string ValidateAuthResult(WebAuthenticatorResult result, string expectedState, string providerName)
+        {
+            if (!result.Properties.TryGetValue("state", out var returnedState) ||
+                !CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(returnedState),
+                    Encoding.UTF8.GetBytes(expectedState)))
+            {
+                throw new InvalidOperationException($"{providerName} returned an invalid authentication state.");
+            }
+
+            if (!result.Properties.TryGetValue("code", out var authorizationCode) ||
+                string.IsNullOrWhiteSpace(authorizationCode))
+            {
+                throw new InvalidOperationException($"{providerName} did not return an authorization code.");
+            }
+
+            return authorizationCode;
+        }
+
+        private static async Task<string> ExchangeCodeForAccessTokenAsync(
+            AuthProvider provider,
+            AuthRequest request,
+            string authorizationCode)
+        {
+            var parameters = new Dictionary<string, string>
+            {
+                ["client_id"] = provider.ClientId,
+                ["redirect_uri"] = provider.RedirectUri,
+                ["grant_type"] = "authorization_code",
+                ["code"] = authorizationCode,
+                ["code_verifier"] = request.CodeVerifier,
+            };
+
+            using var response = await HttpClient.PostAsync(provider.TokenEndpoint, new FormUrlEncodedContent(parameters));
+            var tokenJson = await ReadJsonAsync(response, $"{provider.Name} token exchange");
+
+            return GetRequiredJsonString(tokenJson, "access_token", $"{provider.Name} token response");
+        }
+
+        private static async Task<UserModel> LoadUserProfileAsync(AuthProvider provider, string accessToken)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, provider.UserInfoEndpoint);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            using var response = await HttpClient.SendAsync(request);
+            var profileJson = await ReadJsonAsync(response, $"{provider.Name} profile request");
+
+            return provider.Kind switch
+            {
+                AuthProviderKind.Google => CreateGoogleUser(profileJson),
+                AuthProviderKind.Microsoft => CreateMicrosoftUser(profileJson),
+                _ => throw new InvalidOperationException($"Unsupported auth provider: {provider.Name}."),
+            };
+        }
+
+        private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response, string operationDescription)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException($"{operationDescription} failed with HTTP {(int)response.StatusCode}.");
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            using var document = await JsonDocument.ParseAsync(stream);
+            return document.RootElement.Clone();
+        }
+
+        private static UserModel CreateGoogleUser(JsonElement profile)
+        {
+            return new UserModel
+            {
+                Provider = GoogleProvider.Name,
+                Id = GetJsonString(profile, "sub"),
+                Name = GetJsonString(profile, "name"),
+                Email = GetJsonString(profile, "email"),
+                Picture = CreateUriOrNull(GetJsonString(profile, "picture")),
+            };
+        }
+
+        private static UserModel CreateMicrosoftUser(JsonElement profile)
+        {
+            var email = GetJsonString(profile, "mail");
+            if (string.IsNullOrWhiteSpace(email))
+                email = GetJsonString(profile, "userPrincipalName");
+
+            return new UserModel
+            {
+                Provider = MicrosoftProvider.Name,
+                Id = GetJsonString(profile, "id"),
+                Name = GetJsonString(profile, "displayName"),
+                Email = email,
+            };
+        }
+
+        private static string GetRequiredJsonString(JsonElement json, string propertyName, string description)
+        {
+            var value = GetJsonString(json, propertyName);
+            if (string.IsNullOrWhiteSpace(value))
+                throw new InvalidOperationException($"{description} did not include '{propertyName}'.");
+
+            return value;
+        }
+
+        private static string GetJsonString(JsonElement json, string propertyName)
+        {
+            return json.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String
+                ? property.GetString() ?? string.Empty
+                : string.Empty;
+        }
+
+        private static Uri? CreateUriOrNull(string value)
+        {
+            return Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : null;
+        }
+
+        private static string CreateCodeChallenge(string codeVerifier)
+        {
+            return Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes(codeVerifier)));
+        }
+
+        private static string CreateRandomToken()
+        {
+            return Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+        }
+
+        private static string Base64UrlEncode(byte[] bytes)
+        {
+            return Convert.ToBase64String(bytes)
+                .TrimEnd('=')
+                .Replace('+', '-')
+                .Replace('/', '_');
+        }
+
+        private enum AuthProviderKind
+        {
+            Google,
+            Microsoft,
+        }
+
+        private sealed record AuthProvider(
+            AuthProviderKind Kind,
+            string Name,
+            Uri Authority,
+            Uri TokenEndpoint,
+            Uri UserInfoEndpoint,
+            string ClientId,
+            string RedirectUri,
+            string Scopes);
+
+        private sealed record AuthRequest(
+            string State,
+            string Nonce,
+            string CodeVerifier,
+            string CodeChallenge);
     }
 }
