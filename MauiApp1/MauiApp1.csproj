@@ -36,12 +36,14 @@
 
 	</PropertyGroup>
 
-	<PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-ios' and '$(Configuration)' == 'Release'">
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-ios' and ('$(Configuration)' == 'Release' or '$(EnableAppleSignIn)' == 'true')">
 		<CodesignEntitlements>Platforms/iOS/AppleSignIn.entitlements</CodesignEntitlements>
+		<DefineConstants>$(DefineConstants);APPLE_SIGN_IN</DefineConstants>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-maccatalyst' and '$(Configuration)' == 'Release'">
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-maccatalyst' and ('$(Configuration)' == 'Release' or '$(EnableAppleSignIn)' == 'true')">
 		<CodesignEntitlements>Platforms/MacCatalyst/AppleSignIn.entitlements</CodesignEntitlements>
+		<DefineConstants>$(DefineConstants);APPLE_SIGN_IN</DefineConstants>
 	</PropertyGroup>
 
 	<ItemGroup>
