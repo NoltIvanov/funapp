@@ -19,9 +19,13 @@ namespace MauiApp1
                 });
 
             builder.Services.AddSingleton<INavigationService, NavigationService>();
+            builder.Services.AddSingleton<ISecureStorageService, SecureStorageService>();
             builder.Services.AddSingleton<IUserSessionService, UserSessionService>();
             builder.Services.AddSingleton<IBrowserAuthenticationService, BrowserAuthenticationService>();
             builder.Services.AddSingleton<IAppleAuthenticationService, AppleAuthenticationService>();
+            builder.Services.AddSingleton<HttpClient>();
+            builder.Services.AddSingleton<IAuthenticationService, AuthenticationService>();
+            builder.Services.AddSingleton<IDialogService, DialogService>();
 
             builder.Services.AddTransient<LoginViewModel>();
             builder.Services.AddTransient<FeedViewModel>();

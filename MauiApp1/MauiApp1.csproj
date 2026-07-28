@@ -69,9 +69,11 @@
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
 	</ItemGroup>
 
-	<Target Name="ClearAppleBundleExtendedAttributes"
-	        BeforeTargets="_CodesignAppBundle"
-	        Condition="('$(TargetFramework)' == 'net10.0-ios' or '$(TargetFramework)' == 'net10.0-maccatalyst') and Exists('$(AppBundleDir)')">
+	<ItemGroup>
+	  <ProjectReference Include="..\MauiApp1.Core\MauiApp1.Core.csproj" />
+	</ItemGroup>
+
+	<Target Name="ClearAppleBundleExtendedAttributes" BeforeTargets="_CodesignAppBundle" Condition="('$(TargetFramework)' == 'net10.0-ios' or '$(TargetFramework)' == 'net10.0-maccatalyst') and Exists('$(AppBundleDir)')">
 		<Exec Command="/usr/bin/xattr -cr &quot;$(AppBundleDir)&quot;" />
 	</Target>
 
