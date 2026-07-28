@@ -12,6 +12,7 @@ namespace MauiApp1.ViewModels
     {
         private const string GoogleClientId = "941430168156-87e8flf4huf7sr66foc61kotbb30lqtn.apps.googleusercontent.com";
         private const string GoogleWindowsClientId = "941430168156-c7mp4qb5go2179lcnleei77t7cfafosl.apps.googleusercontent.com";
+        private const string GoogleWindowsClientSecretEnvironmentVariable = "GOOGLE_WINDOWS_CLIENT_SECRET";
 
         private static readonly AuthProvider GoogleProvider = new(
             AuthProviderKind.Google,
@@ -22,6 +23,7 @@ namespace MauiApp1.ViewModels
             GoogleClientId,
             CreateGoogleRedirectUri(GoogleClientId),
             GoogleWindowsClientId,
+            GoogleWindowsClientSecretEnvironmentVariable,
             "127.0.0.1",
             "openid profile email");
 
@@ -34,6 +36,7 @@ namespace MauiApp1.ViewModels
             "84a5b2c7-cc24-4bc2-a272-33bf88b7a0f4",
             "msauth://com.wolfapp/d8KUJIGjAISv24pyqyv1QXT%2Fe64%3D",
             "84a5b2c7-cc24-4bc2-a272-33bf88b7a0f4",
+            string.Empty,
             "localhost",
             "openid profile email User.Read");
 
@@ -202,6 +205,10 @@ namespace MauiApp1.ViewModels
                 ["code_verifier"] = request.CodeVerifier,
             };
 
+            var clientSecret = GetClientSecret(provider);
+            if (!string.IsNullOrWhiteSpace(clientSecret))
+                parameters["client_secret"] = clientSecret;
+
             using var response = await HttpClient.PostAsync(provider.TokenEndpoint, new FormUrlEncodedContent(parameters));
             var tokenJson = await ReadJsonAsync(response, $"{provider.Name} token exchange");
 
@@ -219,6 +226,25 @@ namespace MauiApp1.ViewModels
                 throw new InvalidOperationException($"{provider.Name} sign-in requires an OAuth client ID for this platform.");
 
             return clientId;
+        }
+
+        private static string GetClientSecret(AuthProvider provider)
+        {
+#if WINDOWS
+            if (string.IsNullOrWhiteSpace(provider.WindowsClientSecretEnvironmentVariable))
+                return string.Empty;
+
+            var clientSecret = Environment.GetEnvironmentVariable(provider.WindowsClientSecretEnvironmentVariable);
+            if (string.IsNullOrWhiteSpace(clientSecret))
+            {
+                throw new InvalidOperationException(
+                    $"{provider.Name} sign-in requires the {provider.WindowsClientSecretEnvironmentVariable} environment variable on Windows.");
+            }
+
+            return clientSecret;
+#else
+            return string.Empty;
+#endif
         }
 
         private static string CreateGoogleRedirectUri(string clientId)
@@ -249,14 +275,37 @@ namespace MauiApp1.ViewModels
 
         private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response, string operationDescription)
         {
+            var responseBody = await response.Content.ReadAsStringAsync();
+
             if (!response.IsSuccessStatusCode)
             {
-                throw new InvalidOperationException($"{operationDescription} failed with HTTP {(int)response.StatusCode}.");
+                throw new InvalidOperationException(
+                    $"{operationDescription} failed with HTTP {(int)response.StatusCode}{CreateResponseErrorDescription(responseBody)}.");
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync();
-            using var document = await JsonDocument.ParseAsync(stream);
+            using var document = JsonDocument.Parse(responseBody);
             return document.RootElement.Clone();
+        }
+
+        private static string CreateResponseErrorDescription(string responseBody)
+        {
+            if (string.IsNullOrWhiteSpace(responseBody))
+                return string.Empty;
+
+            try
+            {
+                using var document = JsonDocument.Parse(responseBody);
+                var error = GetJsonString(document.RootElement, "error");
+                var description = GetJsonString(document.RootElement, "error_description");
+
+                return string.IsNullOrWhiteSpace(error) && string.IsNullOrWhiteSpace(description)
+                    ? string.Empty
+                    : $": {error}{(string.IsNullOrWhiteSpace(description) ? string.Empty : $" - {description}")}";
+            }
+            catch (JsonException)
+            {
+                return string.Empty;
+            }
         }
 
         private static UserModel CreateGoogleUser(JsonElement profile)
@@ -340,6 +389,7 @@ namespace MauiApp1.ViewModels
             string ClientId,
             string RedirectUri,
             string WindowsClientId,
+            string WindowsClientSecretEnvironmentVariable,
             string WindowsLoopbackHost,
             string Scopes);
 
