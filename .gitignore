@@ -11,6 +11,9 @@ obj/
 *.dbmdl
 *.jfm
 launchSettings.json
+*.db
+*.db-shm
+*.db-wal
 
 ## Rider
 .idea/

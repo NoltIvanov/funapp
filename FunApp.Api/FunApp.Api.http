@@ -1,0 +1,23 @@
+@FunApp.Api_HostAddress = http://127.0.0.1:5080
+
+GET {{FunApp.Api_HostAddress}}/health
+Accept: application/json
+
+###
+
+POST {{FunApp.Api_HostAddress}}/auth/google/exchange
+Content-Type: application/json
+
+{
+  "authorizationCode": "",
+  "codeVerifier": "",
+  "redirectUri": "",
+  "clientId": "",
+  "platform": "windows"
+}
+
+###
+
+GET {{FunApp.Api_HostAddress}}/me
+Authorization: Bearer replace-with-session-token
+Accept: application/json

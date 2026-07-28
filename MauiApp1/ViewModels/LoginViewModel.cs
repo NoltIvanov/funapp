@@ -13,6 +13,7 @@ namespace MauiApp1.ViewModels
         private const string GoogleClientId = "941430168156-87e8flf4huf7sr66foc61kotbb30lqtn.apps.googleusercontent.com";
         private const string GoogleWindowsClientId = "941430168156-c7mp4qb5go2179lcnleei77t7cfafosl.apps.googleusercontent.com";
         private const string GoogleWindowsClientSecretEnvironmentVariable = "GOOGLE_WINDOWS_CLIENT_SECRET";
+        private const string FunAppApiBaseUrlEnvironmentVariable = "FUNAPP_API_BASE_URL";
 
         private static readonly AuthProvider GoogleProvider = new(
             AuthProviderKind.Google,
@@ -82,12 +83,29 @@ namespace MauiApp1.ViewModels
                     new BrowserAuthenticationOptions(provider.RedirectUri, provider.WindowsLoopbackHost));
 
                 var authorizationCode = ValidateAuthResult(result.Properties, request.State, provider.Name);
-                var accessToken = await ExchangeCodeForAccessTokenAsync(
-                    provider,
-                    request,
-                    authorizationCode,
-                    result.CallbackUri);
-                _userSessionService.CurrentUser = await LoadUserProfileAsync(provider, accessToken);
+                if (provider.Kind == AuthProviderKind.Google && GetBackendBaseUri() is { } backendBaseUri)
+                {
+                    var backendResult = await ExchangeGoogleCodeWithBackendAsync(
+                        provider,
+                        request,
+                        authorizationCode,
+                        result.CallbackUri,
+                        backendBaseUri);
+
+                    _userSessionService.CurrentUser = backendResult.User;
+                    _userSessionService.SessionToken = backendResult.SessionToken;
+                }
+                else
+                {
+                    var accessToken = await ExchangeCodeForAccessTokenAsync(
+                        provider,
+                        request,
+                        authorizationCode,
+                        result.CallbackUri);
+
+                    _userSessionService.CurrentUser = await LoadUserProfileAsync(provider, accessToken);
+                    _userSessionService.SessionToken = null;
+                }
 
                 await _navigationService.GoToMainAsync();
             }
@@ -112,6 +130,7 @@ namespace MauiApp1.ViewModels
             {
                 IsBusy = true;
                 _userSessionService.CurrentUser = await _appleAuthenticationService.SignInAsync();
+                _userSessionService.SessionToken = null;
 
                 await _navigationService.GoToMainAsync();
             }
@@ -215,6 +234,52 @@ namespace MauiApp1.ViewModels
             return GetRequiredJsonString(tokenJson, "access_token", $"{provider.Name} token response");
         }
 
+        private static async Task<BackendAuthResult> ExchangeGoogleCodeWithBackendAsync(
+            AuthProvider provider,
+            AuthRequest request,
+            string authorizationCode,
+            string redirectUri,
+            Uri backendBaseUri)
+        {
+            var payload = new GoogleBackendExchangeRequest(
+                authorizationCode,
+                request.CodeVerifier,
+                redirectUri,
+                GetClientId(provider),
+                GetPlatformName());
+
+            var endpoint = new Uri(backendBaseUri, "auth/google/exchange");
+            var requestBody = JsonSerializer.Serialize(payload);
+
+            using var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+            using var response = await HttpClient.PostAsync(endpoint, content);
+            var json = await ReadJsonAsync(response, "Google backend token exchange");
+
+            var sessionToken = GetRequiredJsonString(json, "sessionToken", "Google backend response");
+            if (!json.TryGetProperty("user", out var userJson) || userJson.ValueKind != JsonValueKind.Object)
+                throw new InvalidOperationException("Google backend response did not include user.");
+
+            return new BackendAuthResult(sessionToken, CreateBackendUser(userJson));
+        }
+
+        private static Uri? GetBackendBaseUri()
+        {
+            var configuredBaseUrl = Environment.GetEnvironmentVariable(FunAppApiBaseUrlEnvironmentVariable);
+            if (string.IsNullOrWhiteSpace(configuredBaseUrl))
+                return null;
+
+            if (!configuredBaseUrl.EndsWith("/", StringComparison.Ordinal))
+                configuredBaseUrl += "/";
+
+            if (!Uri.TryCreate(configuredBaseUrl, UriKind.Absolute, out var backendBaseUri))
+            {
+                throw new InvalidOperationException(
+                    $"{FunAppApiBaseUrlEnvironmentVariable} must be an absolute URI.");
+            }
+
+            return backendBaseUri;
+        }
+
         private static string GetClientId(AuthProvider provider)
         {
 #if WINDOWS
@@ -298,6 +363,12 @@ namespace MauiApp1.ViewModels
                 var error = GetJsonString(document.RootElement, "error");
                 var description = GetJsonString(document.RootElement, "error_description");
 
+                if (string.IsNullOrWhiteSpace(error) && string.IsNullOrWhiteSpace(description))
+                {
+                    error = GetJsonString(document.RootElement, "title");
+                    description = GetJsonString(document.RootElement, "detail");
+                }
+
                 return string.IsNullOrWhiteSpace(error) && string.IsNullOrWhiteSpace(description)
                     ? string.Empty
                     : $": {error}{(string.IsNullOrWhiteSpace(description) ? string.Empty : $" - {description}")}";
@@ -317,6 +388,18 @@ namespace MauiApp1.ViewModels
                 Name = GetJsonString(profile, "name"),
                 Email = GetJsonString(profile, "email"),
                 Picture = CreateUriOrNull(GetJsonString(profile, "picture")),
+            };
+        }
+
+        private static UserModel CreateBackendUser(JsonElement user)
+        {
+            return new UserModel
+            {
+                Provider = GetJsonString(user, "provider"),
+                Id = GetJsonString(user, "id"),
+                Name = GetJsonString(user, "name"),
+                Email = GetJsonString(user, "email"),
+                Picture = CreateUriOrNull(GetJsonString(user, "picture")),
             };
         }
 
@@ -374,6 +457,21 @@ namespace MauiApp1.ViewModels
                 .Replace('/', '_');
         }
 
+        private static string GetPlatformName()
+        {
+#if WINDOWS
+            return "windows";
+#elif ANDROID
+            return "android";
+#elif IOS
+            return "ios";
+#elif MACCATALYST
+            return "maccatalyst";
+#else
+            return "unknown";
+#endif
+        }
+
         private enum AuthProviderKind
         {
             Google,
@@ -398,5 +496,16 @@ namespace MauiApp1.ViewModels
             string Nonce,
             string CodeVerifier,
             string CodeChallenge);
+
+        private sealed record GoogleBackendExchangeRequest(
+            string AuthorizationCode,
+            string CodeVerifier,
+            string RedirectUri,
+            string ClientId,
+            string Platform);
+
+        private sealed record BackendAuthResult(
+            string SessionToken,
+            UserModel User);
     }
 }
