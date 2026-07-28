@@ -10,8 +10,8 @@ namespace MauiApp1.ViewModels
 {
     public class LoginViewModel : BaseViewModel
     {
-        private static readonly string GoogleClientId = GetConfigurationValue("941430168156-87e8flf4huf7sr66foc61kotbb30lqtn.apps.googleusercontent.com");
-        private static readonly string GoogleWindowsClientId = GetConfigurationValue("941430168156-c7mp4qb5go2179lcnleei77t7cfafosl.apps.googleusercontent.com");
+        private const string GoogleClientId = "941430168156-87e8flf4huf7sr66foc61kotbb30lqtn.apps.googleusercontent.com";
+        private const string GoogleWindowsClientId = "941430168156-c7mp4qb5go2179lcnleei77t7cfafosl.apps.googleusercontent.com";
 
         private static readonly AuthProvider GoogleProvider = new(
             AuthProviderKind.Google,
@@ -229,11 +229,6 @@ namespace MauiApp1.ViewModels
                 return string.Empty;
 
             return $"com.googleusercontent.apps.{clientId[..^clientIdSuffix.Length]}:/oauth2callback";
-        }
-
-        private static string GetConfigurationValue(string name)
-        {
-            return Environment.GetEnvironmentVariable(name) ?? string.Empty;
         }
 
         private static async Task<UserModel> LoadUserProfileAsync(AuthProvider provider, string accessToken)

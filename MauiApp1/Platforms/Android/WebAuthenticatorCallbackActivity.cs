@@ -8,7 +8,7 @@ namespace MauiApp1
     [IntentFilter(
         new[] { Android.Content.Intent.ActionView },
         Categories = new[] { Android.Content.Intent.CategoryDefault, Android.Content.Intent.CategoryBrowsable },
-        DataScheme = "com.googleusercontent.apps.675539284871-54atsjtqdpb0soje89qbvu077vineafp",
+        DataScheme = "com.googleusercontent.apps.941430168156-87e8flf4huf7sr66foc61kotbb30lqtn",
         DataPathPrefix = "/oauth2callback")]
     [IntentFilter(
         new[] { Android.Content.Intent.ActionView },
